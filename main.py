@@ -21,21 +21,23 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read("config.ini")
     s = WikiSpider(config)
-    link_set = set()
-    try:
-        for list_url in Military_list_of_lists_url_list:
-            list_list = s.get_lists(list_url)
-            for list_page in list_list:
-                new_url = s.get_links_from_list(list_page)
 
-                link_set |= new_url
-    except Exception as e:
-        with open("urls.txt", "w", encoding="utf-8") as f:
-            for u in link_set:
-                f.write(u + "\n")
-        print(e)
-    else:
-        with open("urls.txt", "w", encoding="utf-8") as f:
-            for u in link_set:
-                f.write(u + "\n")
-    print(len(link_set))
+    print(s.get_web_content("https://en.wikipedia.org/wiki/Battle_of_Tskhinvali"))
+    # link_set = set()
+    # try:
+    #     for list_url in Military_list_of_lists_url_list:
+    #         list_list = s.get_lists(list_url)
+    #         for list_page in list_list:
+    #             new_url = s.get_links_from_list(list_page)
+    #
+    #             link_set |= new_url
+    # except Exception as e:
+    #     with open("urls.txt", "w", encoding="utf-8") as f:
+    #         for u in link_set:
+    #             f.write(u + "\n")
+    #     print(e)
+    # else:
+    #     with open("urls.txt", "w", encoding="utf-8") as f:
+    #         for u in link_set:
+    #             f.write(u + "\n")
+    # print(len(link_set))

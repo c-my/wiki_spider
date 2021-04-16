@@ -20,11 +20,21 @@ class WikiSpider:
 
         return self.process_body(r.text)
 
-    def process_body(self, body) -> dict:
+    def process_body(self, body: str) -> dict:
+        r = {}
+        soup = BeautifulSoup(body, features="lxml")
+        title = self.get_title(soup)
         info = self.get_info(body)
-        img_urls = self.get_image(body)
+        img_urls = self.get_image(soup)
         info["imgs"] = img_urls
-        return info
+        r[title] = info
+        return r
+
+    def get_title(self, soup: BeautifulSoup):
+        head = soup.find("h1", {"id": "firstHeading"})
+        if head is None:
+            return None
+        return head.text
 
     def get_info(self, body) -> dict:
         """
@@ -32,21 +42,26 @@ class WikiSpider:
         :return: dictionary contains property retrieved from wikipedia infobox
         """
         info_dict = {}
-
-        info_boxes = read_html(str(body), index_col=0, attrs={"class": "infobox vcard"})
+        try:
+            info_boxes = read_html(str(body), index_col=0, attrs={"class": "infobox"})
+        except ValueError as e:
+            return info_dict
         tmp_dict = info_boxes[0].to_dict()
         for k, v in tmp_dict.items():
             info_dict = v
             break  # tmp_dict only has one key
         # todo：translate to simplified Chinese
         # remove cite chars and \xa0
-        info_dict = {k: re.sub(r'\[(\d)*\]', "", str(v).replace("\xa0", "")) for k, v in info_dict.items() if
-                     k != v and str(k).lower() != "nan" and str(v).lower() != "nan"}
+        info_dict = {
+            self.strip_info_key(str(k)): self.strip_info_value(str(v)) for
+            k, v in
+            info_dict.items() if
+            k != v and str(k).lower() != "nan" and str(v).lower() != "nan"}
         return info_dict
 
-    def get_image(self, body) -> list[str]:
+    def get_image(self, soup: BeautifulSoup) -> list[str]:
         img_urls = []
-        soup = BeautifulSoup(body, features="lxml")
+        # soup = BeautifulSoup(body, features="lxml")
         thumbs = soup.findAll("img", {"class": "thumbimage"})
         for thumb in thumbs:
             img_page_url = self.wiki_base_url + thumb.parent["href"]
@@ -96,6 +111,29 @@ class WikiSpider:
         return not (":" in url or
                     url.startswith("/wiki/List_of") or
                     url.startswith("/wiki/Lists_of"))
+
+    def strip_info_key(self, info: str) -> str:
+        r = re.sub(r'\[(\d)*\]', "", info.replace("\xa0", "")
+                   .replace("\ufeff", "")
+                   )
+        return r
+
+    def strip_info_value(self, info: str) -> str:
+        r = re.sub(r'\[(\d)*\]', "", info.replace("\xa0", "").replace("\ufeff", "")
+                   .replace(".mw-parser-output", "")
+                   .replace(".geo-default", "")
+                   .replace(".geo-dms", "")
+                   .replace(".geo-nondefault", "")
+                   .replace(".longitude", "")
+                   .replace(".latitude", "")
+                   .replace(".geo-dec", "")
+                   .replace(".geo-multi-punct", "")
+                   .replace("{display:inline}", "")
+                   .replace("{display:none}", "")
+                   .replace("{white-space:nowrap}", "")
+                   )
+
+        return r.strip().lstrip(",")
 
     def get_proxy(self) -> dict:
         return {
