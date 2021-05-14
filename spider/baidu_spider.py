@@ -4,18 +4,22 @@ from bs4 import BeautifulSoup
 
 class BaiduSpider:
     def __init__(self, config):
-        self.baidu_base_url = "https://baike.baidu.com/item/"
+        self.baidu_item_base_url = "https://baike.baidu.com/item/"
+        self.baidu_base_url = "https://baike.baidu.com/"
+        self.headers = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0"
+        }
         return
 
     def get_web_content_by_keyword(self, key, is_from_file=False) -> dict:
-        return self.get_web_content(self.baidu_base_url + key, is_from_file)
+        return self.get_web_content(self.baidu_item_base_url + key, is_from_file)
 
     def get_web_content(self, url, is_from_file=False) -> dict:
-        headers = {
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0"
-        }
+
         if not is_from_file:
-            r = requests.get(url, headers=headers, timeout=5)
+            r = requests.get(url, headers=self.headers, timeout=5)
+            if not r.status_code == 200:
+                return {}
             # print(r.text)
             return self.process_body(r.text)
         else:
@@ -33,8 +37,8 @@ class BaiduSpider:
         info = self.get_info(soup)
         if info == {}:
             return None
-        # img_urls = self.get_image(soup)
-        # info["imgs"] = img_urls
+        img_urls = self.get_image(soup)
+        info["imgs"] = img_urls
         r[title] = info
         return r
 
@@ -63,6 +67,17 @@ class BaiduSpider:
         for i in range(len(right_keys)):
             info_dict[right_keys[i].text] = self.strip_info_value(right_values[i].text)
         return info_dict
+
+    def get_image(self, soup: BeautifulSoup) -> list[str]:
+        image_urls = []
+        image_tags = soup.findAll("div", {"class": "lemma-picture"})
+        for tag in image_tags:
+            image_href = tag.find("a", {"class": "image-link"})["href"]
+            r = requests.get(self.baidu_base_url + image_href[1:], headers=self.headers)
+            s = BeautifulSoup(r.text, features="lxml")
+            print(s.find("img", {"id": "imgPicture"})["src"])
+            image_urls.append(s.find("img", {"id": "imgPicture"})["src"])
+        return image_urls
 
     def get_proxy(self) -> dict:
         return {
