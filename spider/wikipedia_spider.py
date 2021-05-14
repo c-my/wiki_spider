@@ -4,27 +4,77 @@ import requests
 from bs4 import BeautifulSoup
 from pandas.io.html import read_html
 
+_wiki_base_url_dict = {
+    "en": "https://en.wikipedia.org",
+    "ja": "https://ja.wikipedia.org",
+    "ko": "https://ko.wikipedia.org",
+    "zh": "https://zh.wikipedia.org"
+}
+
+_wiki_list_regex_dict = {
+    "en": r"^List of[\s\S]*$",
+    "ja": r"^[\s\S]+一覧$",
+}
+
+
+def _is_en_content_page(url: str) -> bool:
+    return not (":" in url or
+                url.startswith("/wiki/List_of") or
+                url.startswith("/wiki/Lists_of")
+                )
+
+
+def _is_ja_content_page(url: str) -> bool:
+    return not (":" in url or
+                url.endswith("一覧")
+                )
+
+
+def _is_ko_content_page(url: str) -> bool:
+    raise NotImplementedError
+
+
+_is_content_page_func = {
+    "en": _is_en_content_page,
+    "ja": _is_ja_content_page,
+    'ko': _is_ko_content_page,
+}
+
 
 class WikiSpider:
-    def __init__(self, config):
+    def __init__(self, config, language):
         self.proxy_config = config["PROXY"]
-        self.wiki_base_url = "https://en.wikipedia.org"
+        if language not in _wiki_base_url_dict:
+            raise ValueError("language code [{}] is not supported".format(language))
+
+        self.language = language
+        self.wiki_base_url = _wiki_base_url_dict[self.language]
         self.wiki_url = self.wiki_base_url + "/wiki/"
 
     def search_by_chinese(self, keyword):
         url = self.get_wiki_url(keyword)
         return self.get_web_content(url)
 
-    def get_web_content(self, url) -> dict:
-        r = requests.get(url, proxies=self.get_proxy())
+    def get_web_content(self, url, is_from_file=False) -> dict:
+        if not is_from_file:
+            r = requests.get(url, proxies=self.get_proxy())
 
-        return self.process_body(r.text)
+            return self.process_body(r.text)
+        else:
+            text = ""
+            with open(url, 'r', encoding='utf-8') as f:
+                text = f.read()
+            return self.process_body(text)
 
     def process_body(self, body: str) -> dict:
         r = {}
         soup = BeautifulSoup(body, features="lxml")
         title = self.get_title(soup)
+        if title is None:
+            return None
         info = self.get_info(body)
+        if info == {}:
+            return None
         img_urls = self.get_image(soup)
         info["imgs"] = img_urls
         r[title] = info
@@ -82,7 +132,7 @@ class WikiSpider:
         r = requests.get(lists_of_lists_url, proxies=self.get_proxy())
         body = r.text
         soup = BeautifulSoup(body, features="lxml")
-        links = soup.findAll("a", {"title": re.compile(r"^List of[\s\S]*$")})
+        links = soup.findAll("a", {"title": re.compile(_wiki_list_regex_dict[self.language])})
         list_link_set = {self.wiki_base_url + link["href"] for link in links}
         return list_link_set
 
@@ -108,18 +158,16 @@ class WikiSpider:
         return self.wiki_url + keyword
 
     def is_content_page(self, url: str) -> bool:
-        return not (":" in url or
-                    url.startswith("/wiki/List_of") or
-                    url.startswith("/wiki/Lists_of"))
+        return _is_content_page_func[self.language](url)
 
     def strip_info_key(self, info: str) -> str:
-        r = re.sub(r'\[(\d)*\]', "", info.replace("\xa0", "")
-                   .replace("\ufeff", "")
-                   )
-        return r
+        # r = re.sub(r'\[(\d)*\]', "", info.replace("\xa0", "")
+        #            .replace("\ufeff", "")
+        #            )
+        return info
 
     def strip_info_value(self, info: str) -> str:
-        r = re.sub(r'\[(\d)*\]', "", info.replace("\xa0", "").replace("\ufeff", "")
+        r = re.sub(r'\[(\d)*\]', "", info
                    .replace(".mw-parser-output", "")
                    .replace(".geo-default", "")
                    .replace(".geo-dms", "")
@@ -133,7 +181,7 @@ class WikiSpider:
                    .replace("{white-space:nowrap}", "")
                    )
 
-        return r.strip().lstrip(",")
+        return r.replace(" ,", "").strip().lstrip(",")
 
     def get_proxy(self) -> dict:
         return {
