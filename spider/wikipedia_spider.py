@@ -1,4 +1,5 @@
 import re
+from typing import List, Set, Union
 
 import requests
 from bs4 import BeautifulSoup
@@ -66,7 +67,7 @@ class WikiSpider:
                 text = f.read()
             return self.process_body(text)
 
-    def process_body(self, body: str) -> dict:
+    def process_body(self, body: str) -> Union[dict, None]:
         r = {}
         soup = BeautifulSoup(body, features="lxml")
         title = self.get_title(soup)
@@ -109,7 +110,7 @@ class WikiSpider:
             k != v and str(k).lower() != "nan" and str(v).lower() != "nan"}
         return info_dict
 
-    def get_image(self, soup: BeautifulSoup) -> list[str]:
+    def get_image(self, soup: BeautifulSoup) -> List[str]:
         img_urls = []
         # soup = BeautifulSoup(body, features="lxml")
         thumbs = soup.findAll("img", {"class": "thumbimage"})
@@ -123,7 +124,7 @@ class WikiSpider:
             img_urls.append(img_url)
         return img_urls
 
-    def get_lists(self, lists_of_lists_url: str) -> set[str]:
+    def get_lists(self, lists_of_lists_url: str) -> Set[str]:
         """
         get lists from a wikipedia lists_of_lists page
         :param lists_of_lists_url: page url
@@ -136,7 +137,7 @@ class WikiSpider:
         list_link_set = {self.wiki_base_url + link["href"] for link in links}
         return list_link_set
 
-    def get_links_from_list(self, list_url: str) -> set[str]:
+    def get_links_from_list(self, list_url: str) -> Set[str]:
         """
         get all related links in wikipedia list page
         :param list_url: page url
