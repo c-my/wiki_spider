@@ -3,6 +3,7 @@ import configparser
 import json
 import datetime
 import logging
+import traceback
 
 from spider.baidu_spider import BaiduSpider
 from spider.wikipedia_spider import WikiSpider
@@ -48,8 +49,64 @@ def get_web_content_wrapper(wiki_spider: WikiSpider, url: str, loggers: logging.
     try:
         return wiki_spider.get_web_content(url, is_from_file=is_from_file)
     except Exception as e:
-        loggers.warning("failed to get content: {}".format(url))
+        loggers.warning("failed to get content: {}, err:{}".format(url, e))
+        traceback.print_exc()
         return None
+
+
+def get_extra_links_wrapper(wiki_spider: BaiduSpider, url: str, loggers: logging.Logger, is_from_file=False):
+    try:
+        return wiki_spider.get_extra_links(url, is_from_file)
+    except Exception as e:
+        loggers.warning("failed to get extra links: {}".format(url))
+        return None
+
+
+def get_extra_links(configure, url_list_file, output_file, max_iter_times=30, is_from_file=False):
+    logging.basicConfig(filename='spider.log', format="%(asctime)s  %(filename)s : %(levelname)s  %(message)s",
+                        datefmt='%Y-%m-%d: %H:%M:%S',
+                        level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    url_list = set()
+    s = BaiduSpider(configure)
+    with open(url_list_file, "r", encoding='utf-8') as f:
+        for line in f:
+            url_list.add(line[:-1])
+
+    logger.info("spider start")
+    new_links = set()
+    new_new_links = set()
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [executor.submit(get_extra_links_wrapper, s, url, logger, is_from_file) for url in url_list]
+
+        for future in concurrent.futures.as_completed(futures):
+            r = future.result()
+            if r is not None:
+                extra_links_set = set(r)
+                new_links |= extra_links_set - set(url_list)
+                url_list |= new_links
+
+    for i in range(max_iter_times):
+        print("iter: {}".format(i))
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [executor.submit(get_extra_links_wrapper, s, url, logger, is_from_file) for url in new_links]
+            for future in concurrent.futures.as_completed(futures):
+                r = future.result()
+                if r is not None:
+                    extra_links_set = set(r)
+                    new_new_links |= extra_links_set - set(new_links)
+
+                    if len(new_new_links) == 0:
+                        break
+                    url_list |= new_new_links
+        print("new links: {}".format(len(new_new_links)))
+        new_links = new_new_links
+
+        with open(output_file, "w", encoding="utf-8") as f:
+            for url in url_list:
+                f.write(url + "\n")
 
 
 def get_web_content_json(configure, language, url_list_file, output_file, is_from_file=False):
@@ -58,8 +115,9 @@ def get_web_content_json(configure, language, url_list_file, output_file, is_fro
                         level=logging.DEBUG)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
-    s = WikiSpider(configure, language)
-
+    # s = WikiSpider(configure, language)
+    s = BaiduSpider(configure)
+    url_list = []
     with open(url_list_file, "r", encoding='utf-8') as f:
         for line in f:
             url_list.append(line[:-1])
@@ -128,10 +186,16 @@ def test_baidu(config):
 
 
 if __name__ == '__main__':
-    url_list = []
+    # url_list = []
 
     config = configparser.ConfigParser()
     config.read("config.ini")
     # get_web_list(config, military_list_of_lists_url_list_jp, "ja", "data/ja_wiki_urls.txt")
-    # get_web_content_json(config, 'zh', "data/zh_wiki_urls.txt", "data/zh_data.txt", is_from_file=True)
-    test_baidu(config)
+    get_web_content_json(config, 'zh', "data/baidu_baike_urls_extra.txt",
+                         "data/baidu_baike_data_with_summary_extra.txt",
+                         is_from_file=False)
+    # s = BaiduSpider(config)
+    # r = s.get_extra_links("https://baike.baidu.com/item/%E6%AD%BC-20")
+    # print(r)
+    # get_extra_links(config, "data/baidu_baike_urls.txt", "data/baidu_baike_urls_extra.txt")
+    # test_baidu(config)
