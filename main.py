@@ -1,7 +1,6 @@
 import concurrent.futures
 import configparser
 import json
-import datetime
 import logging
 import traceback
 
@@ -45,6 +44,7 @@ military_list_of_lists_url_list_jp = [
 ]
 
 
+# wrapper函数是为了在concurrent中多线程调用
 def get_web_content_wrapper(wiki_spider: WikiSpider, url: str, loggers: logging.Logger, is_from_file=False):
     try:
         return wiki_spider.get_web_content(url, is_from_file=is_from_file)
@@ -177,6 +177,10 @@ def get_web_list(configure, list_of_list_url_list, language, output_path):
 
 
 def test_baidu(config):
+    """
+    一个单纯用来测试的函数
+    :param config:
+    """
     s = BaiduSpider(config)
     r = s.get_web_content("https://baike.baidu.com/item/%E6%AD%BC-20")
     j = json.dumps(r, ensure_ascii=False)
@@ -187,7 +191,7 @@ def test_baidu(config):
 
 if __name__ == '__main__':
     # url_list = []
-
+    # 一些配置信息写在了config.ini中，主要是爬Wikipedia时用到的proxy信息
     config = configparser.ConfigParser()
     config.read("config.ini")
     # get_web_list(config, military_list_of_lists_url_list_jp, "ja", "data/ja_wiki_urls.txt")

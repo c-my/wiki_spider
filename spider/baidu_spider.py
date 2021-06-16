@@ -16,15 +16,31 @@ class BaiduSpider:
         return
 
     def get_web_content_by_keyword(self, key, is_from_file=False) -> dict:
+        """
+        根据词条名称，返回属性信息
+        :param key: 词条名称
+        :param is_from_file: 网页是否从现有文件中提取
+        :return:包含属性信息的dict
+        """
         return self.get_web_content(self.baidu_item_base_url + key, is_from_file)
 
     def get_web_content(self, url, is_from_file=False) -> dict:
+        """
+        爬取url对应百科页面的属性信息
+        :param url: url地址
+        :param is_from_file: 是否从本地网页文件中爬取
+        :return: 属性dict
+        """
         body_text = self.get_web_body_text(url, is_from_file)
         if body_text is None:
             return {}
         return self.process_body(body_text)
 
     def get_extra_links(self, url: str, is_from_file=False) -> List[str]:
+        """
+        从url对应百科页面的属性表格中获取超链接
+        :rtype: 包含链接文本的list
+        """
         extra_links = []
 
         body_text = self.get_web_body_text(url, is_from_file)
@@ -51,6 +67,12 @@ class BaiduSpider:
         return extra_links
 
     def get_web_body_text(self, url, is_from_file=False) -> Union[str, None]:
+        """
+        获取指定网页的html文本
+        :param url: url
+        :param is_from_file: 是否为本地网页文件，为True时 url为文件地址
+        :return:
+        """
         if not is_from_file:
             r = requests.get(url, headers=self.headers, timeout=5)
             if not r.status_code == 200:
@@ -80,6 +102,10 @@ class BaiduSpider:
         return r
 
     def get_title(self, soup: BeautifulSoup):
+        """
+        获取网页的title，即百科的词条名称
+        :rtype: object
+        """
         head = soup.find("dd", {"class": "lemmaWgt-lemmaTitle-title"}).findChild('h1')
 
         if head is None:
@@ -88,6 +114,7 @@ class BaiduSpider:
 
     def get_info(self, soup: BeautifulSoup) -> dict:
         """
+        提取百科页面属性表格的信息，以dict方式返回
         :param body: html content
         :return: dictionary contains property retrieved from wikipedia infobox
         """
@@ -108,11 +135,21 @@ class BaiduSpider:
         return info_dict
 
     def get_summary(self, soup: BeautifulSoup):
+        """
+        获取百科词条页面的描述文本
+        :param soup:
+        :return:
+        """
         s = soup.find("div", {"class": "lemma-summary"}).text
         s = re.sub(r'\[(\d)*\]', "", s.replace("\n", ""))
         return s
 
     def get_image(self, soup: BeautifulSoup) -> List[str]:
+        """
+        获取百科页面的所有图片链接
+        :param soup:
+        :return:
+        """
         image_urls = []
         image_tags = soup.findAll("div", {"class": "lemma-picture"})
         for tag in image_tags:
