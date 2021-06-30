@@ -15,6 +15,34 @@ class BaiduSpider:
         }
         return
 
+    def check_entity_name(self, key_word) -> Union[str, dict, None]:
+        """
+        查询key_word在百科词条中的名称
+        :param key_word: 待查询的keyword
+        :return:    词条不存在则返回None，
+                    词条存在多个释义是返回词典，key为词条名，value为str类型的数组
+                    词条不存在歧义时返回百科中的名称
+        """
+        url = self.baidu_item_base_url + key_word
+        r = requests.get(url, headers=self.headers, allow_redirects=False)
+        if r.status_code == 200:  # 消歧义页面
+            body = r.text
+            soup = BeautifulSoup(body, features="lxml")
+            title = self.get_title(soup)
+            if title is not None:
+                return title
+            list_items = soup.findAll('li', {'class': 'list-dot list-dot-paddingleft'})
+            title_list = [item.text for item in list_items]
+            return {key_word: title_list}
+        location = r.headers['Location']
+        if 'error.html' in location:
+            return None
+        else:
+            body = self.get_web_body_text(url)
+            soup = BeautifulSoup(body, features="lxml")
+            title = self.get_title(soup)
+            return title
+
     def get_web_content_by_keyword(self, key, is_from_file=False) -> dict:
         """
         根据词条名称，返回属性信息
@@ -101,7 +129,7 @@ class BaiduSpider:
         r[title] = info
         return r
 
-    def get_title(self, soup: BeautifulSoup):
+    def get_title(self, soup: BeautifulSoup) -> Union[str, None]:
         """
         获取网页的title，即百科的词条名称
         :rtype: object

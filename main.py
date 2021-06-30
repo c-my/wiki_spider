@@ -195,10 +195,12 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read("config.ini")
     # get_web_list(config, military_list_of_lists_url_list_jp, "ja", "data/ja_wiki_urls.txt")
-    get_web_content_json(config, 'zh', "data/baidu_baike_urls_extra.txt",
-                         "data/baidu_baike_data_with_summary_extra.txt",
-                         is_from_file=False)
-    # s = BaiduSpider(config)
+    # get_web_content_json(config, 'zh', "data/baidu_baike_urls_extra.txt",
+    #                      "data/baidu_baike_data_with_summary_extra.txt",
+    #                      is_from_file=False)
+    s = BaiduSpider(config)
+    entity_name = s.check_entity_name('mq-9')
+    print(entity_name)
     # r = s.get_extra_links("https://baike.baidu.com/item/%E6%AD%BC-20")
     # print(r)
     # get_extra_links(config, "data/baidu_baike_urls.txt", "data/baidu_baike_urls_extra.txt")
