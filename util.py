@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 url_file = "data/en_wiki_urls.txt"
 
@@ -30,5 +31,20 @@ def build_wiki_url_list():
             f.write(r)
 
 
+def generate_wiki_file_list():
+    dir = os.listdir('./data/wikiPages')
+    abs_path_list = []
+    for f in dir:
+        if os.path.isdir(f):
+            continue
+        # print(f)
+        abs_path_list.append('data/wikiPages/'+f)
+    with open('data/wiki_page_url_tmp.txt', 'w', encoding='utf-8') as f:
+        for p in abs_path_list:
+            f.write(p + '\n')
+    return abs_path_list
+
+
 if __name__ == '__main__':
-    build_baidubaike_url_list()
+    # build_baidubaike_url_list()
+    abs_path_list = generate_wiki_file_list()

@@ -3,9 +3,11 @@ import configparser
 import json
 import logging
 import traceback
+from typing import List
 
 from spider.baidu_spider import BaiduSpider
 from spider.wikipedia_spider import WikiSpider
+from util import generate_wiki_file_list
 
 military_list_of_lists_url_list_en = [
     "https://en.wikipedia.org/wiki/Lists_of_accidents_and_incidents_involving_military_aircraft",
@@ -189,6 +191,74 @@ def test_baidu(config):
     # print(s.get_web_content("https://baike.baidu.com/item/%E6%AD%BC-20"))
 
 
+# wrapper函数是为了在concurrent中多线程调用
+def get_align_web_content_wrapper(wiki_spider_zh: WikiSpider, wiki_spider_tgt: WikiSpider, url_zh: str, url_tgt: str,
+                                  tgt_name: str,
+                                  is_from_file=False):
+    try:
+        url_zh = url_zh.replace('/wiki/', '/zh-cn/')
+        content_zh = wiki_spider_zh.get_web_content(url_zh, is_from_file=is_from_file)
+        content_tgt = wiki_spider_tgt.get_web_content(url_tgt, is_from_file=is_from_file)
+        return {'url': url_zh, 'chinese': content_zh, tgt_name: content_tgt}
+    except Exception as e:
+        traceback.print_exc()
+        return None
+
+
+def get_align_item(configure, align_url_file: str):
+    with open(align_url_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+    json_obj = json.loads(content)
+    s_zh = WikiSpider(configure, 'zh')
+    s_ja = WikiSpider(configure, 'ja')
+    result_list = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [executor.submit(get_align_web_content_wrapper, s_zh, s_ja, url_pair['中文'], url_pair['日本語'], 'ja')
+                   for
+                   url_pair
+                   in json_obj]
+        for future in concurrent.futures.as_completed(futures):
+            r = future.result()
+            if r is not None:
+                result_list.append(r)
+    with open('data/zh-ja-item-simplified.txt', 'w', encoding='utf-8') as f:
+        f.write(json.dumps(result_list, ensure_ascii=False))
+
+
+def get_pic_wrapper(spider: BaiduSpider, item: List):
+    try:
+        item_id = item[0]
+        item_name = item[1]
+        baike_url = ''
+        for url in item[2:]:
+            if 'baike.baidu.com' in url:
+                baike_url = url
+                break
+        item_info = spider.get_web_content(baike_url)
+        for v in item_info.values():
+            item.append(v['imgs'])
+        return item
+    except:
+        return item.append([])
+
+
+def get_pic(configure, url_file: str):
+    with open(url_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+        json_obj = json.loads(content)
+    # json_obj = json_obj[0:10]
+    s = BaiduSpider(configure)
+    result_list = []
+    # get_pic_wrapper(s, json_obj)
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [executor.submit(get_pic_wrapper, s, item) for item in json_obj]
+        for future in concurrent.futures.as_completed(futures):
+            r = future.result()
+            result_list.append(r)
+        with open('data/eid_url_with_pic.txt', 'w', encoding='utf-8') as f:
+            f.write(json.dumps(result_list, ensure_ascii=False))
+
+
 if __name__ == '__main__':
     # url_list = []
     # 一些配置信息写在了config.ini中，主要是爬Wikipedia时用到的proxy信息
@@ -198,10 +268,29 @@ if __name__ == '__main__':
     # get_web_content_json(config, 'zh', "data/baidu_baike_urls_extra.txt",
     #                      "data/baidu_baike_data_with_summary_extra.txt",
     #                      is_from_file=False)
-    s = BaiduSpider(config)
-    entity_name = s.check_entity_name('mq-9')
-    print(entity_name)
+    # s = BaiduSpider(config)
+    # entity_name = s.check_entity_name('mq-9')
+    # print(entity_name)
     # r = s.get_extra_links("https://baike.baidu.com/item/%E6%AD%BC-20")
     # print(r)
     # get_extra_links(config, "data/baidu_baike_urls.txt", "data/baidu_baike_urls_extra.txt")
     # test_baidu(config)
+
+    # s = WikiSpider(config, 'en')
+    # s.align_language('data/ja_wiki_urls.txt', '日本語', '中文')
+    # s.align_chinese('data/title.txt')
+    # get_align_item(config, 'data/日本語-中文-align-urls.txt')
+    # get_pic(config, 'data/eid_url.txt')
+
+    s = WikiSpider(config, 'zh')
+    path_list = generate_wiki_file_list()
+    result_list = []
+    for path in path_list:
+        try:
+            result_list.append(s.get_web_content(path, True))
+        except:
+            continue
+    json_obj = json.dumps(result_list, ensure_ascii=False)
+    with open('data/wiki_page_url_tmp.json','w', encoding='utf-8') as f:
+        f.write(json_obj)
+    # s.get_web_content("https://zh.wikipedia.org/wiki/%E6%AD%BC-16")
